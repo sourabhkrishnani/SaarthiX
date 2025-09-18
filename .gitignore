@@ -1,0 +1,40 @@
+# --- Python (FastAPI) ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.log
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# PyCharm / VSCode settings
+.idea/
+.vscode/
+
+# Environment variables
+.env
+*.env
+
+# --- Node.js (React) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Build output
+dist/
+build/
+.cache/
+.next/
+out/
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
