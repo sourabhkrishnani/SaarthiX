@@ -12,7 +12,7 @@ import google.generativeai as genai
 # ----------------- Configure Gemini API -----------------
 
 # NOTE: In production, use os.environ.get("GOOGLE_API_KEY") and set it in your system
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBOJoEzS6Dn6JnEuLpqg7e35LbuZgDKOJM"
+os.environ["GOOGLE_API_KEY"] = "AIzaSyCJoYtD2Vo1mqaEpmsUpIUm0UYdNQDxCr0"
 genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 
 # ----------------- FastAPI App -----------------
@@ -75,7 +75,10 @@ async def upload_file(file: UploadFile = File(...)):
         if not content:
             return {"error": "Unsupported file type or empty file"}
 
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        print("\nAvailable Models:\n")
+        for m in genai.list_models():
+            print(m.name)
 
         # ----------------- RETRY LOGIC HELPER -----------------
         def generate_with_retry(prompt, retries=3, initial_delay=2):
