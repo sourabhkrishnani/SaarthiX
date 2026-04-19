@@ -5,7 +5,12 @@ import ReactMarkdown from "react-markdown";
 function App() {
   const [file, setFile] = useState(null);
   const [shortNotes, setShortNotes] = useState("");
+
+  // Quiz is an array of objects
   const [quiz, setQuiz] = useState([]);
+
+  // User answers: { 0: "Option A", 1: "Option C", ... }
+  const [selectedAnswers, setSelectedAnswers] = useState({});
   const [loading, setLoading] = useState(false);
 
   const handleUpload = async () => {
@@ -16,56 +21,80 @@ function App() {
 
     try {
       setLoading(true);
-      // Ensure your backend URL is correct (http://127.0.0.1:8000/upload)
+      setShortNotes("");
+      setQuiz([]);
+      setSelectedAnswers({});
+
       const res = await axios.post("http://127.0.0.1:8000/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
+
+      console.log("QUIZ RESPONSE:", res.data.quiz);
 
       setShortNotes(res.data.short_notes || "");
       setQuiz(res.data.quiz || []);
     } catch (err) {
       console.error(err);
-      alert("Error uploading file. Make sure the backend is running!");
+      alert("Error uploading file.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Helper to clean quiz questions more aggressively
-  const cleanQuizQuestion = (question) => {
-    if (!question) return "";
-    // Removes: "1.", "1What", "Q1:", "Question 1:", "**1**", bullet points
-    return question
-      .replace(/^[\d\.\)\-]+\s*/, "") // Remove leading numbers, dots, dashes
-      .replace(/^(Question\s*\d+|Q\d+|[-•*])\s*/gi, "") // Remove question labels and bullets
-      .replace(/^\d+/, "") // Additional digit cleanup
-      .trim();
+  const handleOptionClick = (qIndex, option) => {
+    if (selectedAnswers[qIndex]) return;
+    setSelectedAnswers((prev) => ({ ...prev, [qIndex]: option }));
+  };
+
+  const getOptionClass = (qIndex, option, correctAnswer) => {
+    const userSelected = selectedAnswers[qIndex];
+
+    if (!userSelected)
+      return "bg-gray-100 hover:bg-gray-200 text-gray-700";
+
+    if (option === correctAnswer)
+      return "bg-green-100 border-2 border-green-500 text-green-700 font-medium";
+
+    if (userSelected === option && option !== correctAnswer)
+      return "bg-red-100 border-2 border-red-500 text-red-700";
+
+    return "bg-gray-50 text-gray-400 cursor-not-allowed";
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6 font-sans text-gray-800">
-      <div className="max-w-3xl mx-auto bg-white shadow-xl rounded-xl overflow-hidden">
-        
-        {/* Header Section */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+      <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl overflow-hidden">
+
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white">
           <h1 className="text-3xl font-extrabold flex items-center gap-2">
-            🚀 SaarthX <span className="text-sm font-normal bg-white/20 px-2 py-1 rounded">Student Buddy</span>
+            🚀 SaarthX
+            <span className="text-sm font-normal bg-white/20 px-3 py-1 rounded-full">
+              Student Buddy
+            </span>
           </h1>
-          <p className="mt-2 text-blue-100">Upload your PDF and get instant smart notes.</p>
+          <p className="mt-2 text-blue-100 opacity-90">
+            Upload your PDF and get instant smart notes & interactive quizzes.
+          </p>
         </div>
 
-        {/* Upload Section */}
-        <div className="p-6 border-b border-gray-100">
+        {/* Upload */}
+        <div className="p-8 border-b border-gray-100 bg-gray-50/50">
           <div className="flex gap-4 items-center">
             <input
               type="file"
               onChange={(e) => setFile(e.target.files[0])}
-              className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              className="block w-full text-sm text-slate-500 
+              file:mr-4 file:py-2.5 file:px-6 file:rounded-full 
+              file:border-0 file:text-sm file:font-bold 
+              file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 
+              cursor-pointer transition-all"
             />
+
             <button
               onClick={handleUpload}
               disabled={loading}
-              className={`px-6 py-2 rounded-lg font-medium transition-all ${
+              className={`px-8 py-2.5 rounded-full font-bold transition-all transform active:scale-95 ${
                 loading
                   ? "bg-gray-300 cursor-not-allowed"
                   : "bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30"
@@ -76,64 +105,99 @@ function App() {
           </div>
         </div>
 
-        {/* Content Area */}
-        <div className="p-8 space-y-8">
-          
-          {/* Section: Short Notes */}
+        {/* Main Content */}
+        <div className="p-8 space-y-12">
+
+          {/* Smart Notes */}
           {shortNotes && (
-            <div className="animate-fade-in-up">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">
                 📑 Smart Notes
               </h2>
-              
-              <div className="prose prose-lg max-w-none prose-headings:font-bold prose-h1:text-blue-700 prose-h2:text-indigo-600 prose-h3:text-purple-600 prose-strong:text-blue-800 prose-li:marker:text-blue-500">
-                {/*  */}
-                <ReactMarkdown 
-                  components={{
-                    h1: ({node, ...props}) => <h1 className="text-3xl font-extrabold text-blue-800 border-b-2 border-blue-100 pb-2 mb-4" {...props} />,
-                    h2: ({node, ...props}) => <h2 className="text-2xl font-bold text-indigo-700 mt-6 mb-3" {...props} />,
-                    h3: ({node, ...props}) => <h3 className="text-xl font-semibold text-purple-600 mt-4 mb-2" {...props} />,
-                    ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-2 text-gray-700 mb-4" {...props} />,
-                    ol: ({node, ...props}) => <ol className="list-decimal pl-5 space-y-2 text-gray-700 mb-4" {...props} />,
-                    blockquote: ({node, ...props}) => (
-                      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 my-4 rounded-r italic text-gray-700 shadow-sm" {...props} />
-                    ),
-                    strong: ({node, ...props}) => <strong className="font-bold text-blue-900 bg-blue-50 px-1 rounded" {...props} />,
-                    
-                    // Note: Tables will render as plain text without GFM, but we keep styling in case standard markdown tables are used.
-                    table: ({node, ...props}) => <div className="overflow-x-auto my-6 rounded-lg border border-gray-200 shadow-sm"><table className="min-w-full divide-y divide-gray-200" {...props} /></div>,
-                    thead: ({node, ...props}) => <thead className="bg-gray-50" {...props} />,
-                    th: ({node, ...props}) => <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-100" {...props} />,
-                    tbody: ({node, ...props}) => <tbody className="bg-white divide-y divide-gray-200" {...props} />,
-                    tr: ({node, ...props}) => <tr className="hover:bg-gray-50 transition-colors" {...props} />,
-                    td: ({node, ...props}) => <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700" {...props} />,
-                  }}
-                >
-                  {shortNotes}
-                </ReactMarkdown>
+
+              <ReactMarkdown
+                components={{
+                  h1: ({ ...props }) => (
+                    <h1 className="text-3xl font-extrabold text-blue-800 border-b-2 pb-2 mb-4" {...props} />
+                  ),
+                  h2: ({ ...props }) => (
+                    <h2 className="text-2xl font-bold text-indigo-700 mt-6 mb-3" {...props} />
+                  ),
+                  ul: ({ ...props }) => (
+                    <ul className="list-disc pl-5 space-y-2 text-gray-700 mb-4" {...props} />
+                  )
+                }}
+              >
+                {shortNotes}
+              </ReactMarkdown>
+            </div>
+          )}
+
+          {/* Quiz Section */}
+          {quiz.length > 0 && (
+            <div>
+              <h2 className="text-2xl font-bold text-purple-800 mb-6 border-b pb-2">
+                🧠 Interactive Quiz
+              </h2>
+
+              <div className="grid gap-6">
+                {quiz.map((q, index) => (
+                  <div key={index} className="bg-white border rounded-xl p-6 shadow-sm">
+
+                    {/* Handle missing quiz fields */}
+                    {!q?.options || !Array.isArray(q.options) ? (
+                      <div className="text-red-600 font-medium">
+                        ⚠️ Invalid quiz item: options missing for question {index + 1}
+                      </div>
+                    ) : (
+                      <>
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex gap-3">
+                          <span className="bg-purple-100 text-purple-600 w-8 h-8 flex items-center justify-center rounded-full">
+                            {index + 1}
+                          </span>
+                          {q.question}
+                        </h3>
+
+                        <div className="grid gap-3 ml-11">
+                          {q.options.map((option, optIndex) => (
+                            <button
+                              key={optIndex}
+                              onClick={() => handleOptionClick(index, option)}
+                              className={`w-full text-left px-5 py-3 rounded-lg border transition-all duration-200 ${getOptionClass(
+                                index,
+                                option,
+                                q.correct_answer
+                              )}`}
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+
+                        {selectedAnswers[index] && (
+                          <div
+                            className={`ml-11 mt-4 p-4 rounded-lg text-sm ${
+                              selectedAnswers[index] === q.correct_answer
+                                ? "bg-green-50 text-green-800 border border-green-100"
+                                : "bg-red-50 text-red-800 border border-red-100"
+                            }`}
+                          >
+                            <strong>
+                              {selectedAnswers[index] === q.correct_answer
+                                ? "🎉 Correct!"
+                                : "❌ Incorrect."}
+                            </strong>
+                            <span className="block mt-1">{q.rationale}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Section: Quiz */}
-          {quiz.length > 0 && (
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100 animate-fade-in-up delay-100">
-              <h2 className="text-2xl font-bold text-purple-800 mb-4 flex items-center gap-2">
-                🧠 Quick Quiz
-              </h2>
-              <ul className="space-y-3">
-                {quiz.map((q, i) => (
-                  <li key={i} className="flex items-start gap-3 bg-white p-3 rounded-lg shadow-sm border border-purple-100 hover:shadow-md transition-shadow">
-                    <span className="flex-shrink-0 w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-bold text-sm">
-                      {i + 1}
-                    </span>
-                    <span className="text-gray-700 font-medium self-center">{cleanQuizQuestion(q)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          
         </div>
       </div>
     </div>
