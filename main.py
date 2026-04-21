@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import pdfplumber
 import docx
@@ -7,19 +7,24 @@ import os
 import re
 import time
 import random
+import json
+from dotenv import load_dotenv
 import google.generativeai as genai
 
-# ----------------- Configure Gemini API -----------------
+# ----------------- LOAD ENV -----------------
+load_dotenv()
 
-# NOTE: In production, use os.environ.get("GOOGLE_API_KEY") and set it in your system
-os.environ["GOOGLE_API_KEY"] = "AIzaSyCJoYtD2Vo1mqaEpmsUpIUm0UYdNQDxCr0"
-genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# ----------------- FastAPI App -----------------
+if not API_KEY:
+    raise ValueError("❌ GOOGLE_API_KEY not found in .env file")
+
+genai.configure(api_key=API_KEY)
+
+# ----------------- FASTAPI APP -----------------
 
 app = FastAPI(title="SaarthX Backend")
 
-# Allow React frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -31,10 +36,11 @@ app.add_middleware(
 def root():
     return {"message": "🚀 SaarthiX Backend Running"}
 
-# ----------------- Utility function to extract text -----------------
+# ----------------- TEXT EXTRACTION -----------------
 
 def extract_text(file: UploadFile):
     file.file.seek(0)
+
     if file.filename.endswith(".pdf"):
         text = ""
         with pdfplumber.open(file.file) as pdf:
@@ -43,111 +49,113 @@ def extract_text(file: UploadFile):
                 if page_text:
                     text += page_text + "\n"
         return text.strip()
+
     elif file.filename.endswith(".docx"):
         doc = docx.Document(io.BytesIO(file.file.read()))
         return "\n".join([p.text for p in doc.paragraphs]).strip()
+
     elif file.filename.endswith(".txt"):
         return file.file.read().decode("utf-8").strip()
-    else:
-        return None
 
-# ----------------- Helper functions -----------------
+    return None
 
-def clean_quiz(text):
-    lines = []
-    for line in text.split("\n"):
-        line = line.strip()
-        if not line:
-            continue
-        # Improved Regex: Removes "1.", "Q1:", "Question 1:", "**1.**"
-        # This prevents "uestion 1" errors and handles spacing properly
-        line = re.sub(r"^(\d+[\.\)\-]|Q\d+[:\.]?|Question\s*\d+[:\.]?|\*\*Question\s*\d+\*\*:?)\s+", "", line, flags=re.IGNORECASE)
-        line = line.lstrip("-*•").strip()
-        
-        if line:
-            lines.append(line)
-    return lines
+# ----------------- SAFE JSON EXTRACTOR -----------------
+
+def extract_json(text):
+    try:
+        # Remove ```json or ``` blocks
+        text = re.sub(r"```json|```", "", text).strip()
+
+        # Extract JSON array
+        match = re.search(r"\[.*\]", text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+
+        return []
+    except Exception as e:
+        print("❌ JSON parse error:", e)
+        return []
+
+# ----------------- RETRY HELPER -----------------
+
+def generate_with_retry(model, prompt, retries=3, initial_delay=2):
+    for attempt in range(retries):
+        try:
+            return model.generate_content(prompt)
+
+        except Exception as e:
+            if "429" in str(e) or "Resource exhausted" in str(e):
+                if attempt < retries - 1:
+                    sleep_time = initial_delay * (2 ** attempt) + random.uniform(0, 1)
+                    print(f"⚠️ Retrying in {sleep_time:.2f}s...")
+                    time.sleep(sleep_time)
+                    continue
+            raise e
+
+# ----------------- UPLOAD ENDPOINT -----------------
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     try:
         content = extract_text(file)
+
         if not content:
-            return {"error": "Unsupported file type or empty file"}
+            raise HTTPException(status_code=400, detail="Unsupported or empty file")
 
         model = genai.GenerativeModel("gemini-2.5-flash")
-        print("\nAvailable Models:\n")
-        for m in genai.list_models():
-            print(m.name)
 
-        # ----------------- RETRY LOGIC HELPER -----------------
-        def generate_with_retry(prompt, retries=3, initial_delay=2):
-            """
-            Tries to generate content. If a 429 (Rate Limit) error occurs,
-            it waits and retries with exponential backoff.
-            """
-            for attempt in range(retries):
-                try:
-                    return model.generate_content(prompt)
-                except Exception as e:
-                    # Check if error string contains 429 or Resource Exhausted
-                    if "429" in str(e) or "Resource exhausted" in str(e):
-                        if attempt < retries - 1:
-                            # Wait: 2s, 4s, 8s... + random jitter
-                            sleep_time = initial_delay * (2 ** attempt) + random.uniform(0, 1)
-                            print(f"⚠️ Rate limit hit. Retrying in {sleep_time:.2f}s...")
-                            time.sleep(sleep_time)
-                            continue
-                    # If it's not a 429 or we ran out of retries, raise the error
-                    raise e
+        # ----------------- NOTES -----------------
 
-        # ----------------- UPDATED PROMPT FOR PERFECT MARKDOWN -----------------
-        # FIXES: Added explicit instructions for newlines and table spacing.
         notes_prompt = f"""
-        You are SaarthX, an expert AI study assistant. 
-        Analyze the following text and create high-quality, visually distinct short notes using STRICT Markdown.
+        Create clean structured Markdown notes.
 
-        STRICT FORMATTING RULES:
-        1.  **Main Title:** Start with `# Topic Name`.
-        2.  **Subheadings:** Use `## Section Name`.
-        3.  **Emojis:** Add relevant emojis (🌿, ⚛️, 🧠) to every heading.
-        4.  **Lists:** ALWAYS put each list item on a NEW LINE. Never group them in one paragraph.
-            * Correct: 
-                1. Item A
-                2. Item B
-            * Incorrect: 1. Item A 2. Item B
-        5.  **Tables:** If comparing items, use a Markdown table. ALWAYS add a blank line before and after the table.
-        6.  **Spacing:** Add a blank line between every section.
-        7.  **Key Concepts:** Use `**bold text**` for definitions.
-        8.  **Important:** Use `> quote` for key takeaways.
-        
-        Text to summarize:
+        RULES:
+        - Use # title
+        - Use ## headings
+        - Use bullet points
+        - Use **bold** for key terms
+        - Add spacing between sections
+
+        TEXT:
         {content}
         """
-        
-        # Use retry logic for notes
-        notes_resp = generate_with_retry(notes_prompt)
-        short_notes = notes_resp.text.strip()
 
-        # ----------------- QUIZ GENERATION -----------------
-        # Explicitly telling it NOT to give answers or numbers
+        notes_resp = generate_with_retry(model, notes_prompt)
+        short_notes = (getattr(notes_resp, "text", "") or "").strip()
+
+        # ----------------- QUIZ (MCQ JSON) -----------------
+
         quiz_prompt = f"""
-        Create 5 short quiz questions based on this text.
-        
-        OUTPUT RULES:
-        - Return ONLY the questions.
-        - Do NOT include answers.
-        - Do NOT include "Question 1", "Q1", etc.
-        - One question per line.
-        - Ensure questions are distinct.
-        
-        Text:
+        Generate 5 multiple choice questions from the text.
+
+        STRICT RULES:
+        - Return ONLY valid JSON
+        - No explanation outside JSON
+        - No markdown
+        - No extra text
+
+        FORMAT:
+        [
+          {{
+            "question": "string",
+            "options": ["option1", "option2", "option3", "option4"],
+            "correct_answer": "one of the options",
+            "rationale": "short explanation"
+          }}
+        ]
+
+        TEXT:
         {content}
         """
-        
-        # Use retry logic for quiz
-        quiz_resp = generate_with_retry(quiz_prompt)
-        quiz = clean_quiz(quiz_resp.text.strip())
+
+        quiz_resp = generate_with_retry(model, quiz_prompt)
+        quiz_text = (getattr(quiz_resp, "text", "") or "").strip()
+
+        quiz = extract_json(quiz_text)
+
+        if not quiz:
+            print("⚠️ AI returned invalid JSON")
+            quiz = []
 
         return {
             "filename": file.filename,
@@ -155,15 +163,22 @@ async def upload_file(file: UploadFile = File(...)):
             "quiz": quiz
         }
 
-    except Exception as e:
-        print("Upload error:", e)
-        # Return a friendly error to the frontend if it fails after retries
-        if "429" in str(e):
-            return {"error": "Server is busy (Rate Limit). Please try again in a minute."}
-        return {"error": str(e)}
+    except HTTPException as e:
+        raise e
 
-# ----------------- Optional GET /upload -----------------
+    except Exception as e:
+        print("❌ Upload error:", e)
+
+        if "API_KEY" in str(e) or "invalid" in str(e):
+            raise HTTPException(status_code=401, detail="Invalid or expired API key")
+
+        if "429" in str(e):
+            raise HTTPException(status_code=429, detail="Server busy. Try again later")
+
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ----------------- OPTIONAL GET -----------------
 
 @app.get("/upload")
 def upload_get():
-    return {"message": "Please use POST method to upload a file."}
+    return {"message": "Use POST to upload a file"}
