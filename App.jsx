@@ -1,21 +1,29 @@
 import { useState } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
+import { motion, AnimatePresence } from "framer-motion";
 
 function App() {
   const [file, setFile] = useState(null);
   const [shortNotes, setShortNotes] = useState("");
-
-  // Quiz is an array of objects
   const [quiz, setQuiz] = useState([]);
-
-  // User answers: { 0: "Option A", 1: "Option C", ... }
-  const [selectedAnswers, setSelectedAnswers] = useState({});
   const [loading, setLoading] = useState(false);
+  const [selectedAnswers, setSelectedAnswers] = useState({});
+
+  // Constants to match your exact screenshot colors
+  const COLORS = {
+    bg: "#121926",
+    card: "#080c14",
+    inputBar: "#1e293b",
+    accentBlue: "#60a5fa",
+    btnGradient: "linear-gradient(135deg, #4f74f7 0%, #a235f1 100%)",
+    textDim: "#64748b",
+    textLight: "#aab3c2"
+  };
 
   const handleUpload = async () => {
-    if (!file) return alert("Please select a file!");
-
+    if (!file) return alert("Please select a file first!");
+    
     const formData = new FormData();
     formData.append("file", file);
 
@@ -25,180 +33,150 @@ function App() {
       setQuiz([]);
       setSelectedAnswers({});
 
-      const res = await axios.post("http://127.0.0.1:8000/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
+      // Matches your FastAPI endpoint
+      const res = await axios.post("http://localhost:8000/upload", formData);
 
-      console.log("QUIZ RESPONSE:", res.data.quiz);
-
-      setShortNotes(res.data.short_notes || "");
-      setQuiz(res.data.quiz || []);
+      if (res.data.error) {
+        alert(res.data.error);
+      } else {
+        setShortNotes(res.data.short_notes || "");
+        setQuiz(res.data.quiz || []);
+      }
     } catch (err) {
-      console.error(err);
-      alert("Error uploading file.");
+      alert("Could not connect to backend. Ensure FastAPI is running at port 8000.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOptionClick = (qIndex, option) => {
-    if (selectedAnswers[qIndex]) return;
-    setSelectedAnswers((prev) => ({ ...prev, [qIndex]: option }));
-  };
-
-  const getOptionClass = (qIndex, option, correctAnswer) => {
-    const userSelected = selectedAnswers[qIndex];
-
-    if (!userSelected)
-      return "bg-gray-100 hover:bg-gray-200 text-gray-700";
-
-    if (option === correctAnswer)
-      return "bg-green-100 border-2 border-green-500 text-green-700 font-medium";
-
-    if (userSelected === option && option !== correctAnswer)
-      return "bg-red-100 border-2 border-red-500 text-red-700";
-
-    return "bg-gray-50 text-gray-400 cursor-not-allowed";
+  const handleOptionClick = (qIdx, option) => {
+    if (selectedAnswers[qIdx]) return; // Lock answer
+    setSelectedAnswers(prev => ({ ...prev, [qIdx]: option }));
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 font-sans text-gray-800">
-      <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl overflow-hidden">
-
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white">
-          <h1 className="text-3xl font-extrabold flex items-center gap-2">
-            🚀 SaarthX
-            <span className="text-sm font-normal bg-white/20 px-3 py-1 rounded-full">
-              Student Buddy
-            </span>
+    <div style={{ backgroundColor: COLORS.bg, minHeight: "100vh", padding: "60px 20px", color: COLORS.textLight, fontFamily: "'Inter', sans-serif" }}>
+      
+      {/* 1. MAIN CARD (Exact match to your screenshot) */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{ backgroundColor: COLORS.card, width: "100%", maxWidth: "750px", margin: "0 auto", padding: "60px 40px", borderRadius: "24px", textAlign: "center", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", marginBottom: "12px" }}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill={COLORS.accentBlue}><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+          <h1 style={{ fontSize: "2.8rem", fontWeight: "900", color: "white", margin: 0, letterSpacing: "-1px" }}>
+            SaarthX <span style={{ color: COLORS.accentBlue }}>AI</span>
           </h1>
-          <p className="mt-2 text-blue-100 opacity-90">
-            Upload your PDF and get instant smart notes & interactive quizzes.
-          </p>
         </div>
+        <p style={{ color: COLORS.textDim, fontSize: "1.1rem", marginBottom: "40px" }}>Smart Notes + Interactive Quiz Generator</p>
 
-        {/* Upload */}
-        <div className="p-8 border-b border-gray-100 bg-gray-50/50">
-          <div className="flex gap-4 items-center">
-            <input
-              type="file"
-              onChange={(e) => setFile(e.target.files[0])}
-              className="block w-full text-sm text-slate-500 
-              file:mr-4 file:py-2.5 file:px-6 file:rounded-full 
-              file:border-0 file:text-sm file:font-bold 
-              file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 
-              cursor-pointer transition-all"
-            />
-
-            <button
-              onClick={handleUpload}
-              disabled={loading}
-              className={`px-8 py-2.5 rounded-full font-bold transition-all transform active:scale-95 ${
-                loading
-                  ? "bg-gray-300 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30"
-              }`}
-            >
-              {loading ? "Analyzing..." : "Generate Notes"}
-            </button>
-          </div>
+        <div style={{ backgroundColor: COLORS.inputBar, padding: "12px 12px 12px 24px", borderRadius: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid #334155" }}>
+          <input 
+            type="file" 
+            onChange={(e) => setFile(e.target.files[0])}
+            style={{ color: "#94a3b8", fontSize: "0.9rem", cursor: "pointer" }}
+          />
+          <button 
+            onClick={handleUpload} 
+            disabled={loading}
+            style={{ background: COLORS.btnGradient, color: "white", border: "none", padding: "14px 32px", borderRadius: "12px", fontWeight: "bold", fontSize: "1rem", cursor: "pointer", transition: "transform 0.2s" }}
+            onMouseOver={(e) => e.target.style.opacity = "0.9"}
+            onMouseOut={(e) => e.target.style.opacity = "1"}
+          >
+            {loading ? "Processing..." : "Generate"}
+          </button>
         </div>
+      </motion.div>
 
-        {/* Main Content */}
-        <div className="p-8 space-y-12">
-
-          {/* Smart Notes */}
+      {/* 2. DYNAMIC CONTENT SECTION */}
+      <div style={{ maxWidth: "750px", margin: "40px auto" }}>
+        <AnimatePresence>
+          
+          {/* SMART NOTES SECTION */}
           {shortNotes && (
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              style={{ backgroundColor: COLORS.card, padding: "40px", borderRadius: "24px", border: "1px solid #1e293b", marginBottom: "30px" }}
+            >
+              <h2 style={{ color: COLORS.accentBlue, fontSize: "1.5rem", marginBottom: "24px", display: "flex", alignItems: "center", gap: "10px" }}>
                 📑 Smart Notes
               </h2>
-
-              <ReactMarkdown
-                components={{
-                  h1: ({ ...props }) => (
-                    <h1 className="text-3xl font-extrabold text-blue-800 border-b-2 pb-2 mb-4" {...props} />
-                  ),
-                  h2: ({ ...props }) => (
-                    <h2 className="text-2xl font-bold text-indigo-700 mt-6 mb-3" {...props} />
-                  ),
-                  ul: ({ ...props }) => (
-                    <ul className="list-disc pl-5 space-y-2 text-gray-700 mb-4" {...props} />
-                  )
-                }}
-              >
-                {shortNotes}
-              </ReactMarkdown>
-            </div>
+              <div className="prose prose-invert max-w-none" style={{ color: "#cbd5e1", lineHeight: "1.8" }}>
+                <ReactMarkdown>{shortNotes}</ReactMarkdown>
+              </div>
+            </motion.div>
           )}
 
-          {/* Quiz Section */}
+          {/* QUIZ SECTION */}
           {quiz.length > 0 && (
-            <div>
-              <h2 className="text-2xl font-bold text-purple-800 mb-6 border-b pb-2">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              style={{ backgroundColor: COLORS.card, padding: "40px", borderRadius: "24px", border: "1px solid #1e293b" }}
+            >
+              <h2 style={{ color: "#c084fc", fontSize: "1.5rem", marginBottom: "30px", display: "flex", alignItems: "center", gap: "10px" }}>
                 🧠 Interactive Quiz
               </h2>
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                {quiz.map((q, qIdx) => (
+                  <div key={qIdx} style={{ padding: "24px", backgroundColor: "#0f172a", borderRadius: "16px", border: "1px solid #1e293b" }}>
+                    <p style={{ fontWeight: "bold", color: "white", marginBottom: "20px", fontSize: "1.1rem" }}>
+                      <span style={{ color: COLORS.textDim, marginRight: "10px" }}>{qIdx + 1}.</span> 
+                      {q.question}
+                    </p>
+                    
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                      {q.options.map((opt, oIdx) => {
+                        const isSelected = selectedAnswers[qIdx] === opt;
+                        const isCorrect = opt === q.correct_answer;
+                        
+                        let bgColor = "rgba(255,255,255,0.05)";
+                        let borderColor = "#334155";
 
-              <div className="grid gap-6">
-                {quiz.map((q, index) => (
-                  <div key={index} className="bg-white border rounded-xl p-6 shadow-sm">
+                        if (selectedAnswers[qIdx]) {
+                          if (isCorrect) {
+                            bgColor = "#065f46"; // Success Green
+                            borderColor = "#10b981";
+                          } else if (isSelected) {
+                            bgColor = "#7f1d1d"; // Danger Red
+                            borderColor = "#ef4444";
+                          }
+                        }
 
-                    {/* Handle missing quiz fields */}
-                    {!q?.options || !Array.isArray(q.options) ? (
-                      <div className="text-red-600 font-medium">
-                        ⚠️ Invalid quiz item: options missing for question {index + 1}
-                      </div>
-                    ) : (
-                      <>
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex gap-3">
-                          <span className="bg-purple-100 text-purple-600 w-8 h-8 flex items-center justify-center rounded-full">
-                            {index + 1}
-                          </span>
-                          {q.question}
-                        </h3>
-
-                        <div className="grid gap-3 ml-11">
-                          {q.options.map((option, optIndex) => (
-                            <button
-                              key={optIndex}
-                              onClick={() => handleOptionClick(index, option)}
-                              className={`w-full text-left px-5 py-3 rounded-lg border transition-all duration-200 ${getOptionClass(
-                                index,
-                                option,
-                                q.correct_answer
-                              )}`}
-                            >
-                              {option}
-                            </button>
-                          ))}
-                        </div>
-
-                        {selectedAnswers[index] && (
-                          <div
-                            className={`ml-11 mt-4 p-4 rounded-lg text-sm ${
-                              selectedAnswers[index] === q.correct_answer
-                                ? "bg-green-50 text-green-800 border border-green-100"
-                                : "bg-red-50 text-red-800 border border-red-100"
-                            }`}
+                        return (
+                          <button 
+                            key={oIdx}
+                            onClick={() => handleOptionClick(qIdx, opt)}
+                            style={{ textAlign: "left", padding: "14px", borderRadius: "10px", border: `1px solid ${borderColor}`, backgroundColor: bgColor, color: "white", cursor: "pointer", transition: "all 0.2s" }}
                           >
-                            <strong>
-                              {selectedAnswers[index] === q.correct_answer
-                                ? "🎉 Correct!"
-                                : "❌ Incorrect."}
-                            </strong>
-                            <span className="block mt-1">{q.rationale}</span>
-                          </div>
-                        )}
-                      </>
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* RATIONALE REVEAL */}
+                    {selectedAnswers[qIdx] && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        style={{ marginTop: "20px", padding: "16px", backgroundColor: "rgba(96, 165, 250, 0.1)", borderRadius: "8px", borderLeft: `4px solid ${COLORS.accentBlue}` }}
+                      >
+                        <p style={{ margin: 0, fontSize: "0.9rem", color: "#94a3b8" }}>
+                          <strong style={{ color: COLORS.accentBlue }}>Explanation:</strong> {q.rationale}
+                        </p>
+                      </motion.div>
                     )}
                   </div>
                 ))}
               </div>
-            </div>
+            </motion.div>
           )}
 
-        </div>
+        </AnimatePresence>
       </div>
     </div>
   );
