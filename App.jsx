@@ -73,6 +73,12 @@ function App() {
     codeBg: "#0f172a"
   };
 
+  // --- Quiz Analysis Logic ---
+  const attemptedCount = Object.keys(selectedAnswers).length;
+  const correctCount = quiz.reduce((acc, q, idx) => {
+    return selectedAnswers[idx] === q.correct_answer ? acc + 1 : acc;
+  }, 0);
+
   // --- Logic to parse flat markdown into a hierarchical structure ---
   const structuredNotes = useMemo(() => {
     if (!shortNotes) return [];
@@ -100,7 +106,6 @@ function App() {
         } else if (currentH1) {
           currentH1.content += line + "\n";
         } else {
-          // Content before any header
           const intro = { title: "General Info", children: [], content: line + "\n" };
           tree.push(intro);
           currentH1 = intro;
@@ -175,7 +180,7 @@ function App() {
             <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
           </svg>
           <h1 style={{ fontSize: "2.8rem", fontWeight: "900", color: "white", margin: 0, letterSpacing: "-1px" }}>
-            SaarthX <span style={{ color: COLORS.accentBlue }}>AI</span>
+            SaarthiX <span style={{ color: COLORS.accentBlue }}>AI</span>
           </h1>
         </div>
         <p style={{ color: COLORS.textDim, fontSize: "1.1rem", marginBottom: "40px" }}>Smart Notes + Interactive Quiz Generator</p>
@@ -242,7 +247,7 @@ function App() {
                 </div>
               </div>
 
-              {/* COLLAPSIBLE WRAPPER (Accordion + Read More) */}
+              {/* COLLAPSIBLE WRAPPER */}
               <div 
                 style={{ 
                   color: "#cbd5e1", 
@@ -293,7 +298,6 @@ function App() {
                   </CollapsibleSection>
                 ))}
 
-                {/* GRADIENT FADE FOR COLLAPSED STATE */}
                 {!isNotesExpanded && (
                   <div style={{
                     position: "absolute",
@@ -307,7 +311,6 @@ function App() {
                 )}
               </div>
 
-              {/* TOGGLE BUTTON */}
               <button
                 onClick={() => setIsNotesExpanded(!isNotesExpanded)}
                 style={{
@@ -327,6 +330,67 @@ function App() {
               >
                 {isNotesExpanded ? "↑ Show Less" : "↓ Read Full Notes"}
               </button>
+            </motion.div>
+          )}
+
+          {/* QUIZ ANALYSIS CARD */}
+          {quiz.length > 0 && attemptedCount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ backgroundColor: COLORS.card, padding: "30px", borderRadius: "24px", border: "1px solid #1e293b", marginBottom: "30px", textAlign: "center" }}
+            >
+              <h3 style={{ color: "white", fontSize: "1.4rem", marginBottom: "20px", fontWeight: "800" }}>📊 Study Performance Analysis</h3>
+              <div style={{ display: "flex", justifyContent: "center", gap: "40px", marginBottom: "25px" }}>
+                <div>
+                  <div style={{ fontSize: "0.9rem", color: COLORS.textDim }}>Attempted</div>
+                  <div style={{ fontSize: "1.8rem", color: "white", fontWeight: "bold" }}>{attemptedCount} <span style={{ fontSize: "1rem", color: COLORS.textDim }}>/ {quiz.length}</span></div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.9rem", color: COLORS.textDim }}>Correct</div>
+                  <div style={{ fontSize: "1.8rem", color: "#10b981", fontWeight: "bold" }}>{correctCount}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.9rem", color: COLORS.textDim }}>Accuracy</div>
+                  <div style={{ fontSize: "1.8rem", color: COLORS.accentBlue, fontWeight: "bold" }}>{Math.round((correctCount / attemptedCount) * 100)}%</div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", textAlign: "left" }}>
+                {quiz.map((q, idx) => {
+                  if (!selectedAnswers[idx]) return null;
+                  const isCorrect = selectedAnswers[idx] === q.correct_answer;
+                  return (
+                    <div 
+                      key={idx} 
+                      style={{ 
+                        padding: "12px 16px", 
+                        borderRadius: "12px", 
+                        background: isCorrect ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)",
+                        border: isCorrect ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid rgba(239, 68, 68, 0.3)",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                      }}
+                    >
+                      <span style={{ fontSize: "0.9rem", color: "white" }}>
+                        Q{idx + 1}: {q.question.substring(0, 50)}...
+                      </span>
+                      <span style={{ 
+                        fontSize: "0.75rem", 
+                        fontWeight: "bold", 
+                        padding: "4px 10px", 
+                        borderRadius: "20px",
+                        background: isCorrect ? "#065f46" : "#7f1d1d",
+                        color: "white",
+                        textTransform: "uppercase"
+                      }}>
+                        {isCorrect ? "Strong Topic" : "Weak Topic"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </motion.div>
           )}
 
@@ -390,7 +454,6 @@ function App() {
                       })}
                     </div>
 
-                    {/* RATIONALE REVEAL */}
                     {selectedAnswers[qIdx] && (
                       <motion.div 
                         initial={{ opacity: 0, height: 0 }}
